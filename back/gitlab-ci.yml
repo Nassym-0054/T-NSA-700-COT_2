@@ -1,0 +1,54 @@
+image: ansible/ansible:2.9
+
+variables:
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+  SSH_PRIVATE_KEY: "$SSH_PRIVATE_KEY"
+  ANSIBLE_USER: "$ANSIBLE_USER"
+  DEPLOY_USER: "$DEPLOY_USER"
+  DEPLOY_HOST: "$DEPLOY_HOST"
+  DEPLOY_PATH: "$DEPLOY_PATH"
+
+stages:
+  - test
+  - deploy
+  - ansible
+
+Laravel_unit_tests:
+  stage: test
+  script:
+    # - composer update
+    # - sudo apt-get install php-
+    - ls
+    - php -v
+    - composer -v
+    - cd ../
+    - ls
+    - apt-get update
+    - apt-get install -y php-dom
+    - composer update
+    - composer install
+    - php artisan migrate
+    - php artisan db:seed
+    - ./vendor/bin/phpunit
+  tags:
+    - makeTest-Deploys
+
+deploy:
+  stage: deploy
+  script:
+    - echo "Copying the latest code to the remote server"
+    - rsync -r -e "ssh -i $SSH_PRIVATE_KEY" --delete-after --quiet $CI_PROJECT_DIR/ $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH
+  environment:
+    name: production
+  only:
+    - main
+
+ansible_deploy:
+  stage: ansible
+  script:
+    - echo "Deploying the Laravel application with Ansible"
+    - ansible-playbook -i "52.178.220.126" laravel-deploy.yml --extra-vars "ansible_user=$ANSIBLE_USER ansible_ssh_private_key_file=$SSH_PRIVATE_KEY"
+  environment:
+    name: production
+  only:
+    - main
